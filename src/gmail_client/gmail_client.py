@@ -52,14 +52,14 @@ class GmailClient:
 
         html = (
             """
-        <html>
-            <body>     
-        """
+            <html>
+                <body>
+                """
             + html_content
             + """
-            </body>
-        </html>
-        """
+                </body>
+            </html>
+            """
         )
 
         msg.add_alternative(html, subtype="html")
