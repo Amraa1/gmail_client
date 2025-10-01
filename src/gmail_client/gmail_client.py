@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class GmailClient:
+    hostname = "smtp.gmail.com"
+
     def __init__(self, email: str, password: str) -> None:
         self.email = email
         self.password = password
-        self.hostname = "smtp.gmail.com"
 
     async def __aenter__(self):
         self._connection = aiosmtplib.SMTP(
@@ -24,14 +25,13 @@ class GmailClient:
             start_tls=True,
         )
         await self._connection.connect()
-        await self._connection.login(self.email, self.password)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._connection.quit()
 
     def _ensure_connected(self):
-        if getattr(self, "_smtp", None) is None:
+        if getattr(self, "_connection", None) is None:
             raise NotConnectedError(
                 "SMTP connection not established. Use 'async with GmailClient(...)'."
             )
@@ -65,8 +65,8 @@ class GmailClient:
         msg.add_alternative(html, subtype="html")
 
         # Send the message via our own SMTP server.
-        await self._connection.send_message(msg)
+        res = await self._connection.send_message(msg)
 
         logger.info("Mail sent successfully")
 
-        return True
+        return res
