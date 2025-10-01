@@ -1,15 +1,40 @@
+import logging
 from email.message import EmailMessage
 from email.utils import formatdate
 
 import aiosmtplib
 
-from core.logging import MAIL_LOGGER
+from .errors import NotConnectedError
+
+logger = logging.getLogger(__name__)
 
 
 class GmailClient:
     def __init__(self, email: str, password: str) -> None:
-        self.EMAIL = email
-        self.PASSWORD = password
+        self.email = email
+        self.password = password
+        self.hostname = "smtp.gmail.com"
+
+    async def __aenter__(self):
+        self._connection = aiosmtplib.SMTP(
+            hostname=self.hostname,
+            port=587,
+            username=self.email,
+            password=self.password,
+            start_tls=True,
+        )
+        await self._connection.connect()
+        await self._connection.login(self.email, self.password)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._connection.quit()
+
+    def _ensure_connected(self):
+        if getattr(self, "_smtp", None) is None:
+            raise NotConnectedError(
+                "SMTP connection not established. Use 'async with GmailClient(...)'."
+            )
 
     async def send_email(
         self,
@@ -17,11 +42,13 @@ class GmailClient:
         receiver_address: str,
         html_content: str,
     ):
-        self.msg = EmailMessage()
-        self.msg["Subject"] = subject
-        self.msg["From"] = self.EMAIL
-        self.msg["To"] = receiver_address
-        self.msg["Date"] = formatdate(localtime=True)
+        self._ensure_connected()
+
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = self.email
+        msg["To"] = receiver_address
+        msg["Date"] = formatdate(localtime=True)
 
         html = (
             """
@@ -35,20 +62,11 @@ class GmailClient:
         """
         )
 
-        self.msg.add_alternative(html, subtype="html")
+        msg.add_alternative(html, subtype="html")
 
         # Send the message via our own SMTP server.
-        s = aiosmtplib.SMTP(
-            hostname="smtp.gmail.com",
-            port=587,
-            username=self.EMAIL,
-            password=self.PASSWORD,
-            start_tls=True,
-        )
-        await s.connect()
-        await s.send_message(self.msg)
-        await s.quit()
+        await self._connection.send_message(msg)
 
-        MAIL_LOGGER.info("Mail sent successfully")
+        logger.info("Mail sent successfully")
 
         return True

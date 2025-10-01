@@ -1,2 +1,3 @@
-def hello() -> str:
-    return "Hello from gmail-client!"
+from .gmail_client import GmailClient
+
+__all__ = ["GmailClient"]
